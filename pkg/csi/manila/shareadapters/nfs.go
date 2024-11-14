@@ -68,6 +68,8 @@ func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string
 
 	server, share, err := splitExportLocationPath(args.Locations[chosenExportLocationIdx].Path)
 
+	// NFS CSI plugin requirements
+	// https://github.com/kubernetes-csi/csi-driver-nfs/blob/18fdc4a39eb451c7f361effb79cd6a7dc5b4d601/pkg/nfs/nfs.go#L69-L74
 	return map[string]string{
 		"server": server,
 		"share":  share,

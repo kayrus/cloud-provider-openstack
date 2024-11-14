@@ -308,26 +308,6 @@ func validateControllerExpandVolumeRequest(req *csi.ControllerExpandVolumeReques
 // Node service request validation
 //
 
-func validateNodeStageVolumeRequest(req *csi.NodeStageVolumeRequest) error {
-	if req.GetVolumeCapability() == nil {
-		return errors.New("volume capability missing in request")
-	}
-
-	if req.GetVolumeId() == "" {
-		return errors.New("volume ID missing in request")
-	}
-
-	if req.GetVolumeContext() == nil || len(req.GetVolumeContext()) == 0 {
-		return errors.New("volume context cannot be nil or empty")
-	}
-
-	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("stage secrets cannot be nil or empty")
-	}
-
-	return nil
-}
-
 func validateNodeUnstageVolumeRequest(req *csi.NodeUnstageVolumeRequest) error {
 	if req.GetStagingTargetPath() == "" {
 		return errors.New("staging path missing in request")
@@ -335,26 +315,6 @@ func validateNodeUnstageVolumeRequest(req *csi.NodeUnstageVolumeRequest) error {
 
 	if req.GetVolumeId() == "" {
 		return errors.New("volume ID missing in request")
-	}
-
-	return nil
-}
-
-func validateNodePublishVolumeRequest(req *csi.NodePublishVolumeRequest) error {
-	if req.GetVolumeCapability() == nil {
-		return errors.New("volume capability missing in request")
-	}
-
-	if req.GetVolumeId() == "" {
-		return errors.New("volume ID missing in request")
-	}
-
-	if req.GetVolumeContext() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("volume context cannot be nil or empty")
-	}
-
-	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("node publish secrets cannot be nil or empty")
 	}
 
 	return nil

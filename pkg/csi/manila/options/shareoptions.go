@@ -45,6 +45,20 @@ type NodeVolumeContext struct {
 	ShareName     string `name:"shareName" value:"optionalIf:shareID=." precludes:"shareID"`
 	ShareAccessID string `name:"shareAccessID"`
 
+	// NFS mount options
+	Server string `name:"server"`
+	Share  string `name:"share"`
+
+	// Cepffs mount options
+	Monitors        string `name:"monitors"`
+	RootPath        string `name:"rootPath"`
+	Mounter         string `name:"mounter"`
+	ProvisionVolume string `name:"provisionVolume"`
+	// `name:""kernelMountOptions"`
+	// `name:""fuseMountOptions"`
+	UserID  string `name:"userID"`
+	UserKey string `name:"userKey"`
+
 	// Adapter options
 
 	CephfsMounter            string `name:"cephfs-mounter" value:"default:fuse" matches:"^kernel|fuse$"`

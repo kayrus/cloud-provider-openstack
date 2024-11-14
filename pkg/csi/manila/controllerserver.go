@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -71,7 +72,7 @@ func filterParametersForVolumeContext(params map[string]string, recognizedFields
 	volCtx := make(map[string]string)
 
 	for _, fieldName := range recognizedFields {
-		if val, ok := params[fieldName]; ok {
+		if val, ok := params[fieldName]; ok && val != "" {
 			volCtx[fieldName] = val
 		}
 	}
@@ -202,12 +203,24 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.Internal, "failed to grant access to volume %s: %v", share.Name, err)
 	}
 
-	volCtx := filterParametersForVolumeContext(params, options.NodeVolumeContextFields())
-	volCtx = util.SetMapIfNotEmpty(volCtx, "shareID", share.ID)
-	volCtx = util.SetMapIfNotEmpty(volCtx, "shareAccessID", accessRight.ID)
+	exportLocations, err := manilaClient.GetExportLocations(share.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list export locations for volume %s: %v", share.Name, err)
+	}
+
+	volCtx, err := setVolContext(ad, share.ID, shareOpts, exportLocations, accessRight)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to set %s volume context: %v", share.Name, err)
+	}
+
+	klog.Infof("volume context: %+#v", volCtx)
+
+	volCtx = filterParametersForVolumeContext(volCtx, options.NodeVolumeContextFields())
 	volCtx = util.SetMapIfNotEmpty(volCtx, "groupID", share.ShareGroupID)
 	volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", shareOpts.Affinity)
 	volCtx = util.SetMapIfNotEmpty(volCtx, "antiAffinity", shareOpts.AntiAffinity)
+
+	klog.Infof("final volume context: %+#v", volCtx)
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -218,6 +231,35 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			VolumeContext:      volCtx,
 		},
 	}, nil
+}
+
+func setVolContext(ad shareadapters.ShareAdapter, shareID string, shareOpts *options.ControllerVolumeContext, exportLocations []shares.ExportLocation, accessRight *shares.AccessRight) (map[string]string, error) {
+	// Build volume context for fwd plugin
+	opts := &shareadapters.VolumeContextArgs{
+		Locations: exportLocations,
+		Options: &options.NodeVolumeContext{
+			CephfsMounter:            shareOpts.CephfsMounter,
+			CephfsKernelMountOptions: shareOpts.CephfsKernelMountOptions,
+			CephfsFuseMountOptions:   shareOpts.CephfsFuseMountOptions,
+		},
+	}
+	volumeContext, err := ad.BuildVolumeContext(opts)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to build volume context for volume %s: %v", shareID, err)
+	}
+
+	secretOpts := &shareadapters.SecretArgs{
+		AccessRight: accessRight,
+	}
+	secretContext, err := ad.BuildNodeStageSecret(secretOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to build stage secret for volume %s: %v", shareID, err)
+	}
+	for k, v := range secretContext {
+		volumeContext[k] = v
+	}
+
+	return volumeContext, nil
 }
 
 func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
@@ -445,11 +487,51 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 }
 
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	// Configuration
+	shareID := req.GetVolumeId()
+	params := make(map[string]string)
+	params["protocol"] = "nfs"
+	shareOpts, err := options.NewControllerVolumeContext(params)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
+	}
+
+	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
+	}
+
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
+	}
+
+	exportLocations, err := manilaClient.GetExportLocations(shareID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list export locations for volume %s: %v", shareID, err)
+	}
+
+	accessRight := &shares.AccessRight{}
+	ad := getShareAdapter("nfs")
+	volCtx, err := setVolContext(ad, shareID, shareOpts, exportLocations, accessRight)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to set %s volume context: %v", shareID, err)
+	}
+
+	klog.Infof("publish volume context: %+#v", volCtx)
+
+	volCtx = filterParametersForVolumeContext(volCtx, options.NodeVolumeContextFields())
+	volCtx["controllerPublishVolume"] = "true"
+
+	klog.Infof("publish final volume context: %+#v", volCtx)
+
+	return &csi.ControllerPublishVolumeResponse{
+		PublishContext: volCtx,
+	}, nil
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
 func (cs *controllerServer) ListVolumes(context.Context, *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {

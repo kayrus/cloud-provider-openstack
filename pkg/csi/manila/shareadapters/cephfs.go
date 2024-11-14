@@ -116,7 +116,6 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 	}
 
 	monitors, rootPath, err := splitExportLocationPath(args.Locations[chosenExportLocationIdx].Path)
-
 	volCtx := map[string]string{
 		"monitors":        monitors,
 		"rootPath":        rootPath,
@@ -136,6 +135,8 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 }
 
 func (Cephfs) BuildNodeStageSecret(args *SecretArgs) (secret map[string]string, err error) {
+	// cephfs CSI plugin requirements
+	// https://github.com/ceph/ceph-csi/blob/925ea1970c4cde5aa76dfb875a778edcc211d50a/internal/util/credentials.go#L26-L27
 	return map[string]string{
 		"userID":  args.AccessRight.AccessTo,
 		"userKey": args.AccessRight.AccessKey,

@@ -168,6 +168,7 @@ func (d *Driver) SetupControllerService() error {
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	})
 
 	d.addVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{
@@ -189,8 +190,6 @@ func (d *Driver) SetupNodeService() error {
 
 	klog.Info("Providing node service")
 
-	var supportsNodeStage bool
-
 	nodeCapsMap, err := d.initProxiedDriver()
 	if err != nil {
 		return fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
@@ -198,15 +197,11 @@ func (d *Driver) SetupNodeService() error {
 	nscaps := make([]csi.NodeServiceCapability_RPC_Type, 0, len(nodeCapsMap))
 	for c := range nodeCapsMap {
 		nscaps = append(nscaps, c)
-
-		if c == csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME {
-			supportsNodeStage = true
-		}
 	}
 
 	d.addNodeServiceCapabilities(nscaps)
 
-	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
+	d.ns = &nodeServer{d: d}
 	return nil
 }
 
