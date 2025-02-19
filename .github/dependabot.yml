@@ -7,9 +7,57 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     groups:
-      all:
+      # disable, since dependabot doesn't support update of the "replace" directive
+      # k8s.io:
+      #   patterns:
+      #   - "k8s.io/*"
+      system-dependencies:
+        patterns:
+        - "golang.org/x/*"
+      other-dependencies:
         patterns:
         - "*"
+        exclude-patterns:
+        - "k8s.io/*"
+        - "golang.org/x/*"
     open-pull-requests-limit: 10
     schedule:
       interval: "daily"
+#  - package-ecosystem: "gomod"
+#    directory: "/"
+#    groups:
+#      k8s.io:
+#        patterns:
+#        - "k8s.io/*"
+#      system:
+#        patterns:
+#        - "golang.org/x/*"
+#      other:
+#        patterns:
+#        - "*"
+#        exclude-patterns:
+#        - "k8s.io/*"
+#        - "golang.org/x/*"
+#    open-pull-requests-limit: 10
+#    schedule:
+#      interval: "daily"
+#    target-branch: release-1.31
+#  - package-ecosystem: "gomod"
+#    directory: "/"
+#    groups:
+#      k8s.io:
+#        patterns:
+#        - "k8s.io/*"
+#      system:
+#        patterns:
+#        - "golang.org/x/*"
+#      other:
+#        patterns:
+#        - "*"
+#        exclude-patterns:
+#        - "k8s.io/*"
+#        - "golang.org/x/*"
+#    open-pull-requests-limit: 10
+#    schedule:
+#      interval: "daily"
+#    target-branch: release-1.30
