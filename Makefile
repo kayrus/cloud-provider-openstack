@@ -84,6 +84,7 @@ check: work
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4 run --timeout=20m ./...
 
 unit: work
+	go list -m all > /dev/null
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
 
 functional:
